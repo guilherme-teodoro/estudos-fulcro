@@ -1,19 +1,35 @@
 (ns fulcro-todolist.parser
   (:require
-    [com.wsscode.pathom.core :as p]
-    [com.wsscode.pathom.connect :as pc]
-    [taoensso.timbre :as log]))
+   [fulcro-todolist.mutations]
+   [com.wsscode.pathom.core :as p]
+   [com.wsscode.pathom.connect :as pc]
+   [fulcro-todolist.db :as db]
+   [taoensso.timbre :as log]))
 
 (pc/defresolver person-resolver [_ {:person/keys [id]}]
   {::pc/input #{:person/id}
    ::pc/output [:person/name :person/age :person/id :person/created-at]}
-  {:person/name (str "filipe muito universo " id) :person/age 33 :person/id id :person/created-at #inst "2020-01-01"})
+  {:person/name (str "filipe " id) :person/age 33 :person/id id :person/created-at #inst "2020-01-01"})
+
+(pc/defresolver list-resolver [_ {:list/keys [id]}]
+  {::pc/input #{:list/id}
+   ::pc/output [:list/id :list/label {:list/people [:person/id]}]}
+  (when-let [list (get @db/list-table id)]
+    (assoc list
+           :list/people (mapv (fn [id] {:person/id id}) (:list/people list)))))
 
 (pc/defresolver all-kind-of-people-resolver [_ _]
-  {::pc/output [:people/types]}
-  {:people/types ["legal" "chata" "muito legal" "muito chata"]})
+  {::pc/output [:people/types]} {:people/types ["legal" "chata" "muito legal" "muito chata"]})
 
-(def resolvers [person-resolver all-kind-of-people-resolver])
+(pc/defresolver friends-resolver [env input]
+  {::pc/output [{:friends [:list/id]}]}
+  {:friends {:list/id :friends}})
+
+(pc/defresolver enemies-resolver [env input]
+  {::pc/output [{:enemies [:list/id]}]}
+  {:enemies {:list/id :enemies}})
+
+(def resolvers [friends-resolver enemies-resolver person-resolver all-kind-of-people-resolver list-resolver fulcro-todolist.mutations/mutations])
 
 (def pathom-parser
   (p/parser {::p/env     {::p/reader                 [p/map-reader
